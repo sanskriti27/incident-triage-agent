@@ -51,6 +51,8 @@ def fetch_code(state: AgentState) -> AgentState:
                     f"--- {filename} not found in sample_service ---"
                 )
 
+        print(f"Code windows: {code_windows}")
+
         return {
             **state,
             "source_code": "\n\n".join(code_windows),
@@ -66,14 +68,16 @@ def fetch_code(state: AgentState) -> AgentState:
 
 
 def _extract_window(source: str, line_number: int) -> str:
-    """Extract 10 lines above and below the failure point"""
     lines = source.splitlines()
+    print(f"[Debug] File has {len(lines)} lines, extracting around line {line_number}")
     start = max(0, line_number - 10)
     end = min(len(lines), line_number + 10)
-    return "\n".join(
+    window = "\n".join(
         f"{i+1}: {line}"
         for i, line in enumerate(lines[start:end], start=start)
     )
+    print(f"[Debug] Window: {window}")
+    return window
 
 
 def _fetch_local(filename: str) -> str:
