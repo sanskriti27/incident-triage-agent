@@ -17,26 +17,7 @@ together what went wrong. This agent does that in seconds.
 ---
 
 ## Architecture
-Log File (simulated Kafka stream)
-↓
-Log Consumer
-(watches continuously, filters by stack trace pattern)
-↓
-LangGraph Pipeline
-↓
-Tool A — Extracts class name + line number from log
-↓
-Tool B — Fetches source code window around failure point
-↓
-Tool C — Queries DB for transaction record
-↓
-Tool D — LLM reasons over all context, produces triage
-↓
-Notifier — Prints to console + sends email if configured
-↕ Retry with backoff at each step (max 3 attempts)
-↕ Graceful fallback if pipeline cannot complete
-
-## Key Design Decisions
+![Project Screenshot](assets/log_triage_agent_architecture.svg)
 
 **Why a fixed pipeline and not a dynamic agent?**
 The debugging sequence for Java exceptions is deterministic —
