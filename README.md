@@ -56,4 +56,5 @@ via a service account token (for production). Swap via env var.
    python main.py
 
 5. In a separate terminal, append an error to the log file
-   echo 'ERROR 2024-01-15 14:23
+   echo 'ERROR 2024-01-15 14:23:11 [thread-12] req-abc123 - Transaction failed java.lang.NullPointerException at com.example.PaymentService.processPayment(PaymentService.java:47) at com.example.OrderController.checkout(OrderController.java:50) at com.example.UserRepository.findById(UserRepository.java:14)' >> sample_logs/errors.log
+➜  incident-triage-agent git:(feature/v1) ✗ cat > sample_logs/errors.log << 'EOF'
