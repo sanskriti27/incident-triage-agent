@@ -1,7 +1,7 @@
 import re
 from agent.state import AgentState
 
-def log_parser(state: AgentState) -> AgentState:
+def parse_log(state: AgentState) -> AgentState:
     """
     Tool A: Extracts function name and line number from raw Java log.
     Input:  state["raw_log"]

@@ -1,0 +1,9 @@
+{
+  "user_id": "user-123",
+  "balance": null,
+  "status": "not_found",
+  "last_payment_attempt": {
+    "amount": 49.99,
+    "timestamp": "2026-06-06T10:15:00Z"
+  }
+}
