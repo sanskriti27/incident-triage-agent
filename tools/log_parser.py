@@ -1,40 +1,66 @@
 import re
-from agent.state import AgentState
+from dataclasses import dataclass
 
-def parse_log(state: AgentState) -> AgentState:
-    """
-    Tool A: Extracts function name and line number from raw Java log.
-    Input:  state["raw_log"]
-    Output: state["function_name"], state["line_number"]
-    """
-    try:
-        pattern = r'at ([\w.]+)\(([\w]+\.java):(\d+)\)'
-        raw_log = state['raw_log']
-        match = re.search(pattern, raw_log)
-        if not match:
-            return {
-                **state,
-                "error": "Failed to extract function name and line number from log",
-                "retry_count": state['retry_count'] + 1
-            }
+UUID_PATTERN = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+REQ_ID_PATTERN_DEFAULT = rf"\[({UUID_PATTERN})\]"
+DEFAULT_IDENTIFIER_PATTERN = UUID_PATTERN
+SERVICE_NAME_PATTERN = r"(\w+)(?=\.java)"
 
-        full_path = match.group(1)   # com.example.PaymentService.processPayment
-        line_number = int(match.group(3))  # 47
+@dataclass
+class ParsedLog:
+    service_name: str | None
+    error_type: str | None
+    request_id: str | None
+    identifier: str | None
+    raw_log: str
+    warnings: list[str]
 
-        # Last two parts give us Class.method — most useful for Tool B
-        parts = full_path.split(".")
-        function_name = f"{parts[-2]}.{parts[-1]}"  # PaymentService.processPayment
-        
-        return {
-            **state,
-            "function_name": function_name,
-            "line_number": line_number,
-            "error": None,
-        }
+class LogParser:
+    def __init__(self, services):
+        self._services = services
 
-    except Exception as e:
-        return {
-            **state,
-            "error": str(e),
-            "retry_count": state["retry_count"] + 1
-        }
+    def parse(self, raw_log: str) -> ParsedLog:
+        warnings = []
+
+        # 1. Extract service name
+        service_match = re.search(SERVICE_NAME_PATTERN, raw_log)
+        if not service_match:
+            warnings.append("No service name found in stack trace")
+            return ParsedLog(None, None, None, None, raw_log, warnings)
+
+        service_name = service_match.group(1).lower().strip()
+
+        # 2. Get service config for patterns
+        service_config = self._services.get(service_name, {})
+        if not service_config:
+            warnings.append(f"No config found for '{service_name}'. Add to services.yaml.")
+
+        req_id_pattern = service_config.get('request_id_pattern', REQ_ID_PATTERN_DEFAULT)
+        identifier_pattern = service_config.get('identifier_pattern', DEFAULT_IDENTIFIER_PATTERN)
+
+        # 3. Extract request ID
+        req_match = re.search(req_id_pattern, raw_log)
+        request_id = req_match.group(1) if req_match else None
+        if not request_id:
+            warnings.append("No request ID found in log")
+
+        # 4. Extract identifier
+        id_match = re.search(identifier_pattern, raw_log)
+        identifier = id_match.group(1) if id_match else None
+        if not identifier:
+            warnings.append("No identifier found. Context fetch will be skipped.")
+
+        # 5. Extract error type
+        exc_match = re.search(r'(\w+Exception)', raw_log)
+        error_type = exc_match.group(1) if exc_match else None
+        if not error_type:
+            warnings.append("No exception type found in log")
+
+        return ParsedLog(
+            service_name=service_name,
+            error_type=error_type,
+            request_id=request_id,
+            identifier=identifier,
+            raw_log=raw_log,
+            warnings=warnings
+        )

@@ -1,5 +1,6 @@
 # tools/debugger.py
 import os
+from sys import exception
 from openai import OpenAI
 from agent.state import AgentState
 
@@ -14,8 +15,8 @@ def debug(state: AgentState) -> AgentState:
     CALL CHAIN SOURCE CODE:
     {state["source_code"]}
 
-    DATABASE RECORD:
-    {state["db_record"]}
+    FETCHED CONTEXT:
+    {state["fetched_data"]}
 
     Produce a triage report with exactly these sections:
 
