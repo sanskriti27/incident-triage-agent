@@ -2,3 +2,4 @@ langgraph
 openai
 python-dotenv
 requests
+urllib.parse

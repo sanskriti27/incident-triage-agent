@@ -1,0 +1,17 @@
+services:
+  paymentservice:
+    handler_type: database
+    db_path: "sample_service/transactions.db"
+    query: "SELECT * FROM transactions WHERE request_id = ?"
+    # request_id_pattern: uses default [UUID] format
+    # identifier_pattern: uses default [UUID] format
+    description: "Java payment processor. Failures often relate to null transactions or DB timeouts."
+    identifier_search_window: 20
+
+  authservice:
+    handler_type: api
+    identifier_pattern: "session=([a-z0-9\\-]+)"
+    api_url: "http://localhost:8001/sessions/{id}"
+    request_id_pattern: "req-([a-z0-9]+)"
+    identifier_search_window: 5  
+    description: "Python auth service. Failures often relate to expired sessions or Redis misses."
