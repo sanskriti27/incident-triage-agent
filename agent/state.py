@@ -20,3 +20,5 @@ class AgentState(TypedDict):
     retry_count: Annotated[int, take_max]        # highest value wins
     triage_summary: str | None
     notification_sent: bool
+    file_name: str | None
+    line_number: int | None

@@ -22,6 +22,8 @@ class LogParser:
     def parse(self, raw_log: str) -> ParsedLog:
         warnings = []
 
+        print(f"Raw log: {raw_log}")
+
         # 1. Extract service name
         service_match = re.search(SERVICE_NAME_PATTERN, raw_log)
         if not service_match:
@@ -46,7 +48,9 @@ class LogParser:
 
         # 4. Extract identifier
         id_match = re.search(identifier_pattern, raw_log)
+        print(f"Identifier match: {id_match}")
         identifier = id_match.group(1) if id_match else None
+        print(f"Identifier: {identifier}")
         if not identifier:
             warnings.append("No identifier found. Context fetch will be skipped.")
 
