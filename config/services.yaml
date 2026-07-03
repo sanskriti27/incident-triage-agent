@@ -2,9 +2,9 @@ services:
   paymentservice:
     handler_type: database
     db_path: "sample_service/transactions.db"
-    query: "SELECT * FROM transactions WHERE request_id = ?"
-    # request_id_pattern: uses default [UUID] format
-    # identifier_pattern: uses default [UUID] format
+    query: "SELECT * FROM transactions WHERE tx_id = ?"
+    request_id_pattern: "req-([a-z0-9]+)"
+    identifier_pattern: "(TX-[0-9]+)"
     description: "Java payment processor. Failures often relate to null transactions or DB timeouts."
     identifier_search_window: 20
 

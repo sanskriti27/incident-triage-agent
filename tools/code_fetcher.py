@@ -32,7 +32,16 @@ def fetch_code(state: AgentState) -> AgentState:
         code_windows = []
         seen_files = set()  # avoid fetching same file twice
 
+        file_name = None
+        line_num = None
+
         for full_path, filename, line_number in matches:
+
+            if file_name is None:
+                file_name = filename
+            if line_num is None:
+                line_num = int(line_number)
+            
             if filename in seen_files:
                 continue
             seen_files.add(filename)
@@ -54,14 +63,14 @@ def fetch_code(state: AgentState) -> AgentState:
         print(f"Code windows: {code_windows}")
 
         return {
-            **state,
             "source_code": "\n\n".join(code_windows),
+            "file_name": file_name,
+            "line_number": line_num,
             "error": None
         }
 
     except Exception as e:
         return {
-            **state,
             "error": str(e),
             "retry_count": state["retry_count"] + 1
         }

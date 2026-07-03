@@ -21,8 +21,8 @@ def notify(state: AgentState) -> AgentState:
         body = f"""
     INCIDENT TRIAGE REPORT
     ======================
-    Function : {state.get('function_name')}
-    Line     : {state.get('line_number')}
+    File Name : {state.get('file_name')}
+    Line Number : {state.get('line_number')}
 
     {state['triage_summary']}
 
