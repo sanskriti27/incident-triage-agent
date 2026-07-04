@@ -10,13 +10,16 @@ class ApiHandler(BaseHandler):
     def fetch_context(self, identifier: str) -> dict[str, Any]:
         safe_id = quote(identifier, safe='')  # URL-encode any special characters
         url = self._api_url.replace("{id}", safe_id)
+        
+        print(f"Starting api {url} context fetching")
+
         try:
             response = requests.get(url, timeout=5)
         except requests.exceptions.RequestException as e:
             return {"found": False, "error": str(e), "identifier": identifier}
 
         if response.status_code == 404:
-            return {"found": False, "identifier": identifier}
+            return {"found": False, "identifier": identifier, "warning": f"No resource found for identifier {identifier}"}
 
         if response.status_code != 200:
             return {"found": False, "error": f"API returned {response.status_code}", "identifier": identifier}

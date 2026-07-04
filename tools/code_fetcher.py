@@ -24,9 +24,7 @@ def fetch_code(state: AgentState) -> AgentState:
 
         if not matches:
             return {
-                **state,
-                "error": "No stack frames found in log",
-                "retry_count": state["retry_count"] + 1
+                "warnings": ["No stack frames found in log"]
             }
 
         code_windows = []

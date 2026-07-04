@@ -14,11 +14,13 @@ class DatabaseHandler(BaseHandler):
                 cursor = conn.cursor()
                 cursor.execute(self._query, (identifier,))
                 row = cursor.fetchone()
+
+                print(f"Starting database query {self._query} context fetching")
                 if not row:
                     return {
                         "found": False,
                         "identifier": identifier,
-                        "error": f"identifier {identifier} not found in the table"
+                        "warning": f"identifier {identifier} not found in the table"
                     }
             
                 columns = [desc[0] for desc in cursor.description]

@@ -104,17 +104,8 @@ def start_consumer():
             try:
                 initial_state: AgentState = {
                     "raw_log": correlated_log or line,
-                    "service_name": None,
-                    "error_type": None,
-                    "request_id": None,
-                    "identifier": None,
-                    "source_code": None,
-                    "fetched_data": {},
-                    "warnings": [],
                     "error": None,
-                    "retry_count": 0,
-                    "triage_summary": None,
-                    "notification_sent": False
+                    "retry_count": 0
                 }
                 graph.invoke(initial_state)
             finally:
