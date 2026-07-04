@@ -35,11 +35,21 @@ def make_parse_node(services: dict):
 
 def make_fetch_node(registry: ServiceRegistry):
     def fetch_context(state: AgentState) -> AgentState:
+
+        print(f"warnings {state["warnings"]}")
+
+        if "No identifier found. Context fetch will be skipped." in state["warnings"]:
+            return {"fetched_data": {"identifier:": state["identifier"], "warning": "None fetched data as no identifier found"}}
+
         handler = registry.get_handler(state["service_name"])
         fetched = handler.fetch_context(state["identifier"])
-        return {
-            "fetched_data": fetched
-        }
+
+        if fetched.get("error"):
+            return {"error": fetched["error"], "retry_count": state["retry_count"] + 1}
+        if fetched.get("warning"):
+            return {"warnings": [fetched["warning"]], "fetched_data": fetched}
+        return {"fetched_data": fetched}
+        
     return fetch_context
 
 
@@ -51,25 +61,25 @@ def build_graph():
     # Add nodes
     graph.add_node("parse_log", make_parse_node(services))
     graph.add_node("fetch_code", fetch_code)
-    graph.add_node("fetch_db", make_fetch_node(registry))
+    graph.add_node("fetch_context", make_fetch_node(registry))
     graph.add_node("debug", debug)
     graph.add_node("notify", notify)
 
     # Fixed pipeline edges
     graph.set_entry_point("parse_log")
     graph.add_edge("parse_log", "fetch_code")
-    graph.add_edge("parse_log", "fetch_db")
+    graph.add_edge("parse_log", "fetch_context")
     graph.add_conditional_edges("fetch_code", should_retry, {
         "continue": "debug",
         "retry": "fetch_code",
         "fail": "notify"
     })
-    graph.add_conditional_edges("fetch_db", should_retry, {
+    graph.add_conditional_edges("fetch_context", should_retry, {
         "continue": "debug",
-        "retry": "fetch_db",
+        "retry": "fetch_context",
         "fail": "notify"
     })
-    graph.add_edge("debug", "notify")
+    # graph.add_edge("debug", "notify")
     graph.add_edge("notify", END)
 
     return graph.compile()
