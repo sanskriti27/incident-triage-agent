@@ -1,0 +1,121 @@
+<svg width="100%" viewBox="0 0 700 900" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>Log Triage Agent architecture diagram (current implementation)</title>
+  <desc>End-to-end flow from Java service through local log file, Redis correlation, LangGraph fan-out pipeline, and notifier</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#9c9a92" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- Java Service -->
+  <g>
+    <rect x="240" y="30" width="220" height="44" rx="8" fill="#085041" stroke="#5dcaa5" stroke-width="0.5"/>
+    <text x="350" y="52" text-anchor="middle" dominant-baseline="central" fill="#9fe1cb" font-family="sans-serif" font-size="14" font-weight="500">Java service</text>
+  </g>
+  <text x="350" y="84" text-anchor="middle" fill="#c2c0b6" font-family="sans-serif" font-size="12">writes ERROR lines with stack traces</text>
+  <line x1="350" y1="90" x2="350" y2="114" marker-end="url(#arrow)" stroke="#9c9a92" stroke-width="1.5"/>
+
+  <!-- Local log file -->
+  <g>
+    <rect x="220" y="116" width="260" height="56" rx="8" fill="#68482a" stroke="#e0b47a" stroke-width="0.5"/>
+    <text x="350" y="136" text-anchor="middle" dominant-baseline="central" fill="#f2d9ae" font-family="sans-serif" font-size="14" font-weight="500">sample_logs/errors.log</text>
+    <text x="350" y="156" text-anchor="middle" dominant-baseline="central" fill="#e0b47a" font-family="sans-serif" font-size="12">plain local file · appended to directly</text>
+  </g>
+  <text x="490" y="150" text-anchor="start" fill="#c2c0b6" font-family="sans-serif" font-size="11" opacity="0.8">no Kafka — file is tailed</text>
+  <line x1="350" y1="174" x2="350" y2="198" marker-end="url(#arrow)" stroke="#9c9a92" stroke-width="1.5"/>
+
+  <!-- Log Consumer -->
+  <g>
+    <rect x="200" y="200" width="300" height="72" rx="8" fill="#444441" stroke="#b4b2a9" stroke-width="0.5"/>
+    <text x="350" y="222" text-anchor="middle" dominant-baseline="central" fill="#d3d1c7" font-family="sans-serif" font-size="14" font-weight="500">Python consumer (kafka_consumer/)</text>
+    <text x="350" y="240" text-anchor="middle" dominant-baseline="central" fill="#b4b2a9" font-family="sans-serif" font-size="12">tails file · extracts req_id + thread_id</text>
+    <text x="350" y="256" text-anchor="middle" dominant-baseline="central" fill="#b4b2a9" font-family="sans-serif" font-size="12">triggers on "ERROR" + stack-trace pattern</text>
+  </g>
+  <line x1="350" y1="272" x2="350" y2="296" marker-end="url(#arrow)" stroke="#9c9a92" stroke-width="1.5"/>
+
+  <!-- Redis -->
+  <g>
+    <rect x="220" y="298" width="260" height="72" rx="8" fill="#712b13" stroke="#f0997b" stroke-width="0.5"/>
+    <text x="350" y="318" text-anchor="middle" dominant-baseline="central" fill="#f5c4b3" font-family="sans-serif" font-size="14" font-weight="500">Redis</text>
+    <text x="350" y="336" text-anchor="middle" dominant-baseline="central" fill="#f0997b" font-family="sans-serif" font-size="12">logs:{req_id} list · TTL from REDIS_TTL</text>
+    <text x="350" y="352" text-anchor="middle" dominant-baseline="central" fill="#f0997b" font-family="sans-serif" font-size="12">active:{req_id} flag · dedup in-flight triage</text>
+  </g>
+
+  <!-- dedup skip branch -->
+  <path d="M480 334 L560 334 L560 380" fill="none" stroke="#9c9a92" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow)" opacity="0.6"/>
+  <text x="565" y="360" text-anchor="start" opacity="0.7" fill="#c2c0b6" font-family="sans-serif" font-size="11">already active</text>
+  <g>
+    <rect x="500" y="382" width="160" height="40" rx="8" fill="#444441" stroke="#b4b2a9" stroke-width="0.5"/>
+    <text x="580" y="402" text-anchor="middle" dominant-baseline="central" fill="#b4b2a9" font-family="sans-serif" font-size="11">skip — duplicate triage</text>
+  </g>
+
+  <line x1="350" y1="370" x2="350" y2="394" marker-end="url(#arrow)" stroke="#9c9a92" stroke-width="1.5"/>
+
+  <!-- LangGraph container -->
+  <g>
+    <rect x="40" y="396" width="410" height="360" rx="12" fill="#0c447c" fill-opacity="0.08" stroke="#85b7eb" stroke-width="0.5"/>
+  </g>
+  <text x="245" y="420" text-anchor="middle" fill="#faf9f5" font-family="sans-serif" font-size="14" font-weight="500">LangGraph pipeline (agent/graph.py)</text>
+
+  <!-- parse_log -->
+  <g>
+    <rect x="165" y="434" width="160" height="44" rx="8" fill="#0c447c" stroke="#85b7eb" stroke-width="0.5"/>
+    <text x="245" y="452" text-anchor="middle" dominant-baseline="central" fill="#b5d4f4" font-family="sans-serif" font-size="14" font-weight="500">parse_log</text>
+    <text x="245" y="468" text-anchor="middle" dominant-baseline="central" fill="#85b7eb" font-family="sans-serif" font-size="11">service · identifier · warnings</text>
+  </g>
+
+  <!-- parse_log fans out to fetch_code + fetch_db -->
+  <path d="M245 478 L245 496 L150 496 L150 510" fill="none" stroke="#9c9a92" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M245 478 L245 496 L340 496 L340 510" fill="none" stroke="#9c9a92" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- fetch_code -->
+  <g>
+    <rect x="70" y="512" width="160" height="52" rx="8" fill="#0c447c" stroke="#85b7eb" stroke-width="0.5"/>
+    <text x="150" y="530" text-anchor="middle" dominant-baseline="central" fill="#b5d4f4" font-family="sans-serif" font-size="14" font-weight="500">fetch_code</text>
+    <text x="150" y="548" text-anchor="middle" dominant-baseline="central" fill="#85b7eb" font-family="sans-serif" font-size="11">parse frames · read source windows</text>
+  </g>
+  <text x="150" y="580" text-anchor="middle" opacity="0.65" fill="#c2c0b6" font-family="sans-serif" font-size="10">↻ retry ≤3 on error</text>
+
+  <!-- fetch_db -->
+  <g>
+    <rect x="260" y="512" width="160" height="52" rx="8" fill="#0c447c" stroke="#85b7eb" stroke-width="0.5"/>
+    <text x="340" y="530" text-anchor="middle" dominant-baseline="central" fill="#b5d4f4" font-family="sans-serif" font-size="14" font-weight="500">fetch_db</text>
+    <text x="340" y="548" text-anchor="middle" dominant-baseline="central" fill="#85b7eb" font-family="sans-serif" font-size="11">ServiceRegistry → handler.fetch_context</text>
+  </g>
+  <text x="340" y="580" text-anchor="middle" opacity="0.65" fill="#c2c0b6" font-family="sans-serif" font-size="10">↻ retry ≤3 on error</text>
+
+  <!-- both -> debug -->
+  <path d="M150 564 L150 604 L245 604 L245 620" fill="none" stroke="#9c9a92" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M340 564 L340 604 L245 604 L245 620" fill="none" stroke="#9c9a92" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="245" y="600" text-anchor="middle" opacity="0.75" fill="#c2c0b6" font-family="sans-serif" font-size="10">only on success — else → notify (fail path)</text>
+
+  <!-- debug -->
+  <g>
+    <rect x="165" y="622" width="160" height="52" rx="8" fill="#0c447c" stroke="#85b7eb" stroke-width="0.5"/>
+    <text x="245" y="640" text-anchor="middle" dominant-baseline="central" fill="#b5d4f4" font-family="sans-serif" font-size="14" font-weight="500">debug</text>
+    <text x="245" y="658" text-anchor="middle" dominant-baseline="central" fill="#85b7eb" font-family="sans-serif" font-size="11">LLM · 7-section triage report</text>
+  </g>
+
+  <line x1="245" y1="674" x2="245" y2="702" marker-end="url(#arrow)" stroke="#9c9a92" stroke-width="1.5"/>
+  <text x="245" y="694" text-anchor="middle" opacity="0.6" fill="#c2c0b6" font-family="sans-serif" font-size="10">fail-fast paths also converge here</text>
+
+  <!-- exit langgraph -->
+  <line x1="350" y1="756" x2="350" y2="780" marker-end="url(#arrow)" stroke="#9c9a92" stroke-width="1.5"/>
+
+  <!-- Notifier -->
+  <g>
+    <rect x="220" y="782" width="260" height="56" rx="8" fill="#085041" stroke="#5dcaa5" stroke-width="0.5"/>
+    <text x="350" y="802" text-anchor="middle" dominant-baseline="central" fill="#9fe1cb" font-family="sans-serif" font-size="14" font-weight="500">Notifier</text>
+    <text x="350" y="822" text-anchor="middle" dominant-baseline="central" fill="#5dcaa5" font-family="sans-serif" font-size="12">console always · email if SMTP configured</text>
+  </g>
+
+  <!-- legend -->
+  <rect x="52" y="860" width="12" height="12" rx="2" fill="#0c447c" stroke="#85b7eb" stroke-width="0.5"/>
+  <text x="70" y="871" fill="#c2c0b6" font-family="sans-serif" font-size="12">LangGraph node</text>
+  <rect x="200" y="860" width="12" height="12" rx="2" fill="#712b13" stroke="#f0997b" stroke-width="0.5"/>
+  <text x="218" y="871" fill="#c2c0b6" font-family="sans-serif" font-size="12">Redis</text>
+  <rect x="280" y="860" width="12" height="12" rx="2" fill="#68482a" stroke="#e0b47a" stroke-width="0.5"/>
+  <text x="298" y="871" fill="#c2c0b6" font-family="sans-serif" font-size="12">local file</text>
+  <rect x="380" y="860" width="12" height="12" rx="2" fill="#085041" stroke="#5dcaa5" stroke-width="0.5"/>
+  <text x="398" y="871" fill="#c2c0b6" font-family="sans-serif" font-size="12">service / output</text>
+</svg>
