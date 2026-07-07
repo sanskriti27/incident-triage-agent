@@ -36,8 +36,6 @@ def make_parse_node(services: dict):
 def make_fetch_node(registry: ServiceRegistry):
     def fetch_context(state: AgentState) -> AgentState:
 
-        print(f"warnings {state["warnings"]}")
-
         if "No identifier found. Context fetch will be skipped." in state["warnings"]:
             return {"fetched_data": {"identifier:": state["identifier"], "warning": "None fetched data as no identifier found"}}
 
@@ -79,7 +77,7 @@ def build_graph():
         "retry": "fetch_context",
         "fail": "notify"
     })
-    # graph.add_edge("debug", "notify")
+    graph.add_edge("debug", "notify")
     graph.add_edge("notify", END)
 
     return graph.compile()
