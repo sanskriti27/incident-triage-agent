@@ -6,6 +6,7 @@ from collections import deque
 import redis
 from agent.graph import build_graph
 from agent.state import AgentState
+from redis.exceptions import ConnectionError, TimeoutError
 
 LOG_PATH = "sample_logs/errors.log"
 POLL_INTERVAL = 2
@@ -18,8 +19,13 @@ THREAD_ID_PATTERN = re.compile(r'\[([^\]]+)\]')
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_TTL = int(os.getenv("REDIS_TTL", 300))
+REDIS_TIMEOUT = int(os.getenv("REDIS_TIMEOUT", 2))
 
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+r = redis.Redis(
+    host=REDIS_HOST, port=REDIS_PORT, decode_responses=True,
+    socket_connect_timeout=REDIS_TIMEOUT,
+    socket_timeout=REDIS_TIMEOUT,
+)
 
 def tail_log(filepath: str):
     with open(filepath, "r") as f:
@@ -51,13 +57,19 @@ def store_in_redis(req_id: str, line: str):
 def get_correlated_logs(req_id: str, thread_id: str, buffer: list) -> str:
     """Try Redis first, fall back to local buffer"""
     if req_id:
-        redis_logs = r.lrange(f"logs:{req_id}", 0, -1)
-        if redis_logs:
-            print(f"[Consumer] Fetched {len(redis_logs)} lines from Redis")
-            return "\n".join(redis_logs)
+        try:
+            redis_logs = r.lrange(f"logs:{req_id}", 0, -1)
+            if redis_logs:
+                print(f"[Consumer] Fetched {len(redis_logs)} lines from Redis")
+                return "\n".join(redis_logs)
+        except (ConnectionError, TimeoutError) as e:
+            print(f"[Consumer] Redis unavailable: {e}")
+            
+    return get_correlated_logs_from_buffer(req_id, thread_id, buffer)
 
-    # Fallback — correlate from local buffer
-    print(f"[Consumer] Redis empty, falling back to local buffer")
+def get_correlated_logs_from_buffer(req_id: str, thread_id: str, buffer: list) -> str:
+    """Fallback — correlate from local buffer"""
+    print(f"[Consumer] Falling back to local buffer")
     correlated = []
     for log_line in buffer:
         matches_req = req_id and req_id in log_line
@@ -67,7 +79,12 @@ def get_correlated_logs(req_id: str, thread_id: str, buffer: list) -> str:
     return "\n".join(correlated)
 
 def is_active(req_id: str) -> bool:
-    return r.exists(f"active:{req_id}") == 1
+    try:
+        is_active_flag = r.exists(f"active:{req_id}") == 1
+        return is_active_flag
+    except Exception as e:
+        print(f"[Consumer] Failed is_active with error: {e}")
+        return False
 
 def mark_active(req_id: str):
     r.set(f"active:{req_id}", "1", ex=REDIS_TTL)
@@ -80,11 +97,17 @@ def start_consumer():
     print(f"[Consumer] Watching {LOG_PATH} for errors...")
 
     for line, buffer in tail_log(LOG_PATH):
-        req_id, thread_id = extract_identifiers(line)
 
+        req_id, thread_id = extract_identifiers(line)
+        
         # Store every line in Redis grouped by req_id
         if req_id:
-            store_in_redis(req_id, line)
+            try:
+                store_in_redis(req_id, line)
+            except ConnectionError as e1:
+                print(f"[Consumer] Unable to connect to redis: {e1}")
+            except TimeoutError as e2:
+                print(f"[Consumer] Redis connection timed out: {e2}")        
 
         if should_trigger(line):
             print(f"\n[Consumer] Exception detected")
@@ -99,7 +122,10 @@ def start_consumer():
             print(f"[Consumer] Correlated {len(correlated_log.splitlines())} log lines")
 
             if req_id:
-                mark_active(req_id)
+                try:
+                    mark_active(req_id)
+                except Exception as e:
+                    print(f"[Consumer] Error while mark_active: {e}")
 
             try:
                 initial_state: AgentState = {
@@ -110,4 +136,7 @@ def start_consumer():
                 graph.invoke(initial_state)
             finally:
                 if req_id:
-                    clear_active(req_id)
+                    try:
+                        clear_active(req_id)
+                    except Exception as e:
+                        print(f"[Consumer] Error while clear_active: {e}")
