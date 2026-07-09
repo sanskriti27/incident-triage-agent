@@ -4,6 +4,8 @@ import time
 import os
 from collections import deque
 import redis
+from redis.backoff import NoBackoff
+from redis.retry import Retry
 from agent.graph import build_graph
 from agent.state import AgentState
 from redis.exceptions import ConnectionError, TimeoutError
@@ -17,15 +19,19 @@ REQUEST_ID_PATTERN = re.compile(r'req-[\w-]+', re.IGNORECASE)
 THREAD_ID_PATTERN = re.compile(r'\[([^\]]+)\]')
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_TTL = int(os.getenv("REDIS_TTL", 300))
-REDIS_TIMEOUT = int(os.getenv("REDIS_TIMEOUT", 2))
+
+REDIS_DEDUPE_PORT = int(os.getenv("REDIS_DEDUPE_PORT", 6379))
+REDIS_DEDUPE_TTL = int(os.getenv("REDIS_DEDUPE_TTL", 300))
+REDIS_DEDUPE_TIMEOUT = int(os.getenv("REDIS_DEDUPE_TIMEOUT", 1))
+
+# TODO Add redis caching
 
 r = redis.Redis(
-    host=REDIS_HOST, port=REDIS_PORT, decode_responses=True,
-    socket_connect_timeout=REDIS_TIMEOUT,
-    socket_timeout=REDIS_TIMEOUT,
-)
+    host=REDIS_HOST, port=REDIS_DEDUPE_PORT, decode_responses=True,
+    socket_connect_timeout=REDIS_DEDUPE_TIMEOUT,
+    socket_timeout=REDIS_DEDUPE_TIMEOUT
+    )
+r.set_retry(Retry(NoBackoff(), 1))
 
 def tail_log(filepath: str):
     with open(filepath, "r") as f:
@@ -52,7 +58,7 @@ def should_trigger(line: str) -> bool:
 def store_in_redis(req_id: str, line: str):
     """Append log line to Redis list for this req_id, reset TTL"""
     r.rpush(f"logs:{req_id}", line)
-    r.expire(f"logs:{req_id}", REDIS_TTL)
+    r.expire(f"logs:{req_id}", REDIS_DEDUPE_TTL)
 
 def get_correlated_logs(req_id: str, thread_id: str, buffer: list) -> str:
     """Try Redis first, fall back to local buffer"""
@@ -87,7 +93,7 @@ def is_active(req_id: str) -> bool:
         return False
 
 def mark_active(req_id: str):
-    r.set(f"active:{req_id}", "1", ex=REDIS_TTL)
+    r.set(f"active:{req_id}", "1", ex=REDIS_DEDUPE_TTL)
 
 def clear_active(req_id: str):
     r.delete(f"active:{req_id}")
@@ -104,10 +110,8 @@ def start_consumer():
         if req_id:
             try:
                 store_in_redis(req_id, line)
-            except ConnectionError as e1:
-                print(f"[Consumer] Unable to connect to redis: {e1}")
-            except TimeoutError as e2:
-                print(f"[Consumer] Redis connection timed out: {e2}")        
+            except (ConnectionError, TimeoutError) as e:
+                print(f"[Consumer] Redis unavailable: {e}")      
 
         if should_trigger(line):
             print(f"\n[Consumer] Exception detected")
